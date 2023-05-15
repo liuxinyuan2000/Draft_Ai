@@ -6,6 +6,5 @@ import { upsertPrediction } from "../../lib/db";
 export default async function handler(req, res) {
   console.log("received webhook for prediction: ", req.body.id);
   await upsertPrediction(req.body);
-
   res.end();
 }

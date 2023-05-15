@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import Replicate from "replicate";
 import packageData from "../../../package.json";
+import prisma from "../../../prisma";
 
 
 // 2. 创建名为 replicate 的 Replicate 实例，用于连接到 Replicate AI 平台的 API 端点，并设置相关的身份验证凭据和请求头信息等。这里使用的身份验证凭据来自环境变量
@@ -55,7 +56,9 @@ export default async function handler(req) {
     webhook: `${WEBHOOK_HOST}/api/replicate-webhook`,
     webhook_events_filter: ["start", "completed"],
   });
-
+  // console.log("prediction", prediction);
+  console.log("req.body ", req.body);
+  await upsertPrediction(req.body)
   if (prediction?.error) {
     return NextResponse.json({ detail: prediction.error }, { status: 500 });
   }
@@ -81,3 +84,41 @@ export const config = {
 
 
 // 综上所述，该页面主要用于连接到 Replicate AI 平台的 Webhook 端点，接收 AI 模型的预测结果，并将之发送回 API 客户端。
+
+export async function upsertPrediction(predictionData) {
+  console.log("🤔 upsert prediction? ", predictionData.id);
+
+  // if (predictionData?.status !== "succeeded") {
+  //   console.log("🙈 skiping incomplete or unsuccesful prediction");
+  //   return;
+  // }
+
+  const prediction = {
+    uuid: predictionData.id,
+    input: predictionData.input,
+    output: predictionData.output,
+    status: predictionData.status,
+    created_at: predictionData.created_at,
+    started_at: predictionData.started_at,
+    completed_at: predictionData.completed_at,
+    version: predictionData.version,
+    metrics: predictionData.metrics,
+    error: predictionData.error,
+  };
+
+  try {
+    await prisma.prediction.upsert({
+      where: {
+        uuid: prediction.uuid,
+      },
+      update: prediction,
+      create: prediction,
+    });
+
+    console.log("✅ upserted prediction ", prediction.uuid);
+  } catch (e) {
+    console.error(e);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
